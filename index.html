@@ -1,0 +1,491 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>실시간 공동 작업 학습지 (교사/학생 권한 분리)</title>
+    <style>
+        body { font-family: 'Malgun Gothic', sans-serif; background-color: #f4f5f7; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; overflow-x: hidden; }
+        
+        #controls { 
+            margin-bottom: 15px; 
+            background: white; 
+            padding: 12px 20px; 
+            border-radius: 8px; 
+            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
+            display: flex; 
+            gap: 15px; 
+            align-items: center; 
+            flex-wrap: wrap;
+            z-index: 1000;
+        }
+        
+        .control-group { display: flex; align-items: center; gap: 8px; font-size: 14px; }
+        .control-divider { width: 1px; height: 24px; background-color: #ddd; margin: 0 5px; }
+
+        .save-btn, .reset-btn { background-color: #0984e3; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; }
+        .save-btn:hover { background-color: #74b9ff; }
+        .reset-btn { background-color: #636e72; }
+        .reset-btn:hover { background-color: #b2bec3; }
+        
+        .role-badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 13px; color: white; }
+        .role-teacher { background-color: #d63031; }
+        .role-student { background-color: #00b894; }
+
+        #zoom-wrapper { width: 100%; display: flex; justify-content: center; padding-bottom: 100px; }
+        #worksheet-container { position: relative; width: 1200px; min-height: 800px; background-color: white; border: 2px solid #ccc; cursor: crosshair; box-shadow: 0 4px 8px rgba(0,0,0,0.1); touch-action: none; overflow: hidden; transform-origin: top center; transition: transform 0.1s ease-out; }
+        #pdf-canvas { position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none; transform-origin: top left; transition: transform 0.05s ease-out; }
+        .placeholder-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #aaa; font-size: 18px; pointer-events: none; z-index: 1; }
+        
+        #online-users-container { position: fixed; top: 20px; right: 20px; width: 180px; background: white; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.15); padding: 15px; z-index: 100; border: 1px solid #ddd; }
+        .online-header { font-weight: bold; margin-bottom: 10px; font-size: 14px; border-bottom: 1px solid #eee; padding-bottom: 8px; color: #333; }
+        #online-users-list { max-height: 300px; overflow-y: auto; }
+        .online-user { font-size: 13px; padding: 5px 0; display: flex; align-items: center; color: #555; }
+        .online-indicator { width: 8px; height: 8px; background-color: #2ecc71; border-radius: 50%; margin-right: 8px; box-shadow: 0 0 4px #2ecc71; }
+
+        .sticky-note { position: absolute; box-shadow: 2px 2px 5px rgba(0,0,0,0.2); border-radius: 4px; display: flex; flex-direction: column; z-index: 10; resize: both; overflow: hidden; min-width: 150px; min-height: 100px; }
+        .sticky-note.is-dragging { z-index: 99; opacity: 0.9; box-shadow: 4px 4px 10px rgba(0,0,0,0.3); }
+        .sticky-note.readonly { resize: none !important; }
+
+        .sticky-note.yellow { background-color: #ffeaa7; border: 1px solid #f1c40f; }
+        .sticky-note.yellow .drag-handle { background-color: #f1c40f; }
+        .sticky-note.blue { background-color: #74b9ff; border: 1px solid #0984e3; }
+        .sticky-note.blue .drag-handle { background-color: #0984e3; }
+        .sticky-note.blue .author-name, .sticky-note.blue .close-btn { color: white; }
+        .sticky-note.pink { background-color: #fd79a8; border: 1px solid #e84393; }
+        .sticky-note.pink .drag-handle { background-color: #e84393; }
+        .sticky-note.pink .author-name, .sticky-note.pink .close-btn { color: white; }
+        .sticky-note.green { background-color: #55efc4; border: 1px solid #00b894; }
+        .sticky-note.green .drag-handle { background-color: #00b894; }
+
+        .drag-handle { padding: 5px 8px; cursor: move; display: flex; justify-content: space-between; align-items: center; user-select: none; }
+        .drag-handle.readonly { cursor: default; }
+        
+        .author-name { font-size: 12px; font-weight: bold; color: #333; }
+        .header-controls { display: flex; align-items: center; gap: 8px; }
+        .color-palette { display: flex; gap: 4px; }
+        .color-btn { width: 12px; height: 12px; border-radius: 50%; cursor: pointer; border: 1px solid rgba(0,0,0,0.2); }
+        .color-btn.yellow { background-color: #f1c40f; }
+        .color-btn.blue { background-color: #0984e3; }
+        .color-btn.pink { background-color: #e84393; }
+        .color-btn.green { background-color: #00b894; }
+        .close-btn { cursor: pointer; font-size: 12px; color: #555; font-weight: bold; }
+        .close-btn:hover { color: red !important; }
+        .sticky-note textarea { flex: 1; width: 100%; background: transparent; border: none; resize: none; outline: none; font-size: 14px; padding: 8px; box-sizing: border-box; }
+        .sticky-note textarea:read-only { color: #555; cursor: default; }
+    </style>
+</head>
+<body>
+
+    <div id="online-users-container">
+        <div class="online-header">🟢 접속 중 (<span id="online-count">0</span>명)</div>
+        <div id="online-users-list"></div>
+    </div>
+
+    <div id="controls">
+        <!-- 현재 모드 표시 배지 -->
+        <span id="role-badge" class="role-badge"></span>
+        <div class="control-divider"></div>
+
+        <div class="control-group">
+            <strong>🔍 화면 돋보기:</strong>
+            <label><input type="range" id="zoom-slider" min="30" max="150" value="100" style="width: 70px;"></label>
+            <span id="zoom-val" style="min-width: 38px;">100%</span>
+        </div>
+
+        <!-- 🚀 교사에게만 보이는 제어 영역 -->
+        <div id="teacher-controls" style="display: flex; align-items: center; gap: 15px;">
+            <div class="control-divider"></div>
+            <div class="control-group">
+                <label for="pdf-upload"><strong>📄 배경 PDF 업로드: </strong></label>
+                <input type="file" id="pdf-upload" accept="application/pdf">
+            </div>
+            
+            <div class="control-divider"></div>
+
+            <div class="control-group">
+                <strong>📐 배경 조절:</strong>
+                <label>배율 <input type="range" id="pdf-scale" min="50" max="200" value="100" style="width: 60px;"></label>
+                <label>가로 <input type="range" id="pdf-x" min="-400" max="400" value="0" style="width: 60px;"></label>
+                <label>세로 <input type="range" id="pdf-y" min="-400" max="400" value="0" style="width: 60px;"></label>
+                <button type="button" class="reset-btn" id="pdf-reset-btn">초기화</button>
+            </div>
+            
+            <div class="control-divider"></div>
+            <!-- 학생용 링크 복사 버튼 (선생님 화면에만 보임) -->
+            <button class="save-btn" onclick="copyStudentLink()">🧑‍🎓 학생용 초대 링크 복사</button>
+        </div>
+    </div>
+
+    <div id="zoom-wrapper">
+        <div id="worksheet-container">
+            <canvas id="pdf-canvas"></canvas>
+            <div class="placeholder-text" id="placeholder">학습지가 준비되지 않았습니다.</div>
+        </div>
+    </div>
+
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.min.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-app.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/8.10.1/firebase-database.js"></script>
+
+    <script>
+        pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
+
+        // ==========================================
+        // 🚀 1. 권한(Role) 및 방 번호 파라미터 분리
+        // ==========================================
+        const urlParams = new URLSearchParams(window.location.search);
+        let roomId = urlParams.get('room');
+        let role = urlParams.get('role');
+        let isTeacher = false;
+
+        if (!roomId) {
+            // 방이 없으면 새로 생성하며 무조건 '교사(teacher)' 권한을 부여함
+            roomId = Math.random().toString(36).substr(2, 9);
+            window.history.replaceState(null, '', '?room=' + roomId + '&role=teacher');
+            isTeacher = true;
+        } else if (role === 'teacher') {
+            isTeacher = true;
+        }
+
+        // UI에 역할 표시 및 비권한 영역 숨김
+        const roleBadge = document.getElementById('role-badge');
+        const teacherControls = document.getElementById('teacher-controls');
+        
+        if (isTeacher) {
+            roleBadge.innerText = "👨‍🏫 교사 모드";
+            roleBadge.className = "role-badge role-teacher";
+        } else {
+            roleBadge.innerText = "🧑‍🎓 학생 모드";
+            roleBadge.className = "role-badge role-student";
+            teacherControls.style.display = "none"; // 학생 화면에서는 배경 조절 메뉴 차단
+        }
+
+        function copyStudentLink() {
+            // 현재 주소에서 ?room=ID 부분만 추출하여 학생용 링크로 만듦 (role=teacher 제거)
+            const link = window.location.origin + window.location.pathname + '?room=' + roomId;
+            navigator.clipboard.writeText(link).then(() => {
+                alert("학생용 초대 링크가 복사되었습니다!\n학생들은 배경을 수정할 수 없으며 본인 메모만 제어할 수 있습니다.\n\n링크: " + link);
+            });
+        }
+
+        const container = document.getElementById('worksheet-container');
+        const canvas = document.getElementById('pdf-canvas');
+        const ctx = canvas.getContext('2d');
+        const placeholder = document.getElementById('placeholder');
+        if(isTeacher) placeholder.innerText = "상단에서 PDF 파일을 선택하여 배경으로 불러오세요.";
+
+        let currentZoom = 1;
+        const zoomSlider = document.getElementById('zoom-slider');
+        const zoomVal = document.getElementById('zoom-val');
+
+        zoomSlider.addEventListener('input', (e) => {
+            currentZoom = e.target.value / 100;
+            zoomVal.innerText = e.target.value + '%';
+            container.style.transform = `scale(${currentZoom})`;
+        });
+
+        // Firebase 설정 
+        const firebaseConfig = {
+            apiKey: "AIzaSyDtGTiFym_6Ijd7lCxFFZkPe0Q8uBb1BoE",
+            authDomain: "history-a0be7.firebaseapp.com",
+            projectId: "history-a0be7",
+            storageBucket: "history-a0be7.firebasestorage.app",
+            messagingSenderId: "856471000610",
+            appId: "1:856471000610:web:a50c04ff92d0816e169c7b",
+            databaseURL: "https://history-a0be7-default-rtdb.firebaseio.com"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+
+        const roomRef = db.ref('worksheets/' + roomId);
+        const notesRef = roomRef.child('notes');
+        const presenceRef = roomRef.child('presence');
+        const bgRef = roomRef.child('pdf_background');
+        const pdfTransformRef = roomRef.child('pdf_transform'); 
+
+        // PDF 배경 렌더링
+        bgRef.on('value', (snap) => {
+            if (snap.val()) {
+                renderPdfFromBase64(snap.val());
+            } else {
+                ctx.clearRect(0, 0, canvas.width, canvas.height);
+                placeholder.style.display = 'block';
+            }
+        });
+
+        if (isTeacher) {
+            document.getElementById('pdf-upload').addEventListener('change', function(e) {
+                const file = e.target.files[0];
+                if (file && file.type === 'application/pdf') {
+                    const reader = new FileReader();
+                    reader.onload = function(ev) { bgRef.set(ev.target.result); };
+                    reader.readAsDataURL(file);
+                }
+            });
+        }
+
+        function renderPdfFromBase64(dataUrl) {
+            const base64 = dataUrl.split(',')[1];
+            const binary = atob(base64);
+            const len = binary.length;
+            const buffer = new ArrayBuffer(len);
+            const view = new Uint8Array(buffer);
+            for (let i = 0; i < len; i++) view[i] = binary.charCodeAt(i);
+            
+            pdfjsLib.getDocument({ data: view }).promise.then(pdf => {
+                pdf.getPage(1).then(page => {
+                    const unscaledViewport = page.getViewport({ scale: 1.0 });
+                    const scale = container.clientWidth / unscaledViewport.width;
+                    const viewport = page.getViewport({ scale: scale });
+                    canvas.width = viewport.width;
+                    canvas.height = viewport.height;
+                    container.style.height = viewport.height + 'px';
+                    page.render({ canvasContext: ctx, viewport: viewport });
+                    placeholder.style.display = 'none';
+                });
+            });
+        }
+
+        // PDF 변형 동기화
+        const scaleInput = document.getElementById('pdf-scale');
+        const xInput = document.getElementById('pdf-x');
+        const yInput = document.getElementById('pdf-y');
+        const resetBtn = document.getElementById('pdf-reset-btn');
+
+        pdfTransformRef.on('value', (snap) => {
+            const val = snap.val() || { scale: 100, x: 0, y: 0 };
+            const scale = val.scale / 100;
+            canvas.style.transform = `translate(${val.x}px, ${val.y}px) scale(${scale})`;
+            
+            if (isTeacher) {
+                scaleInput.value = val.scale;
+                xInput.value = val.x;
+                yInput.value = val.y;
+            }
+        });
+
+        if (isTeacher) {
+            const updateTransform = () => {
+                pdfTransformRef.set({ scale: parseInt(scaleInput.value, 10), x: parseInt(xInput.value, 10), y: parseInt(yInput.value, 10) });
+            };
+            scaleInput.addEventListener('input', updateTransform);
+            xInput.addEventListener('input', updateTransform);
+            yInput.addEventListener('input', updateTransform);
+            resetBtn.addEventListener('click', () => pdfTransformRef.set({ scale: 100, x: 0, y: 0 }));
+        }
+
+        // 사용자 이름
+        let userName = prompt("활동에 참여할 이름을 입력하세요:\n(입력한 이름이 메모 작성자로 표시됩니다)", "");
+        if (!userName || userName.trim() === "") userName = "익명";
+
+        db.ref('.info/connected').on('value', (snap) => {
+            if (snap.val() === true) {
+                const myPresenceRef = presenceRef.push();
+                myPresenceRef.onDisconnect().remove().then(() => myPresenceRef.set({ name: userName }));
+            }
+        });
+
+        const onlineUsersList = document.getElementById('online-users-list');
+        const onlineCount = document.getElementById('online-count');
+        presenceRef.on('value', (snap) => {
+            onlineUsersList.innerHTML = '';
+            let count = 0;
+            snap.forEach((childSnap) => {
+                onlineUsersList.innerHTML += `<div class="online-user"><div class="online-indicator"></div><span>${childSnap.val().name}</span></div>`;
+                count++;
+            });
+            onlineCount.innerText = count;
+        });
+
+        // 포스트잇 생성
+        container.addEventListener('click', function(e) {
+            if (e.target !== container && e.target !== canvas && e.target !== placeholder) return;
+            const containerRect = container.getBoundingClientRect();
+            const clickX = Math.round((e.clientX - containerRect.left) / currentZoom);
+            const clickY = Math.round((e.clientY - containerRect.top) / currentZoom);
+            notesRef.push().set({ left: clickX, top: clickY, width: 200, height: 150, text: "", author: userName, color: "yellow" });
+        });
+
+        notesRef.on('child_added', (snapshot) => renderStickyNote(snapshot.key, snapshot.val()));
+        
+        notesRef.on('child_changed', (snapshot) => {
+            const data = snapshot.val();
+            const id = snapshot.key;
+            const note = document.getElementById('note-' + id);
+            const textarea = document.getElementById('textarea-' + id);
+            
+            if (note) {
+                note.className = 'sticky-note ' + (data.color || 'yellow');
+                // 권한이 없으면 readonly 유지
+                const isMine = (data.author === userName);
+                if (!isTeacher && !isMine) note.classList.add('readonly');
+
+                if (note.dataset.locked !== "true") {
+                    note.style.left = data.left + 'px';
+                    note.style.top = data.top + 'px';
+                    note.style.width = data.width + 'px';
+                    note.style.height = data.height + 'px';
+                    note.dataset.w = data.width;
+                    note.dataset.h = data.height;
+                }
+            }
+            if (textarea && textarea !== document.activeElement) textarea.value = data.text;
+        });
+
+        notesRef.on('child_removed', (snapshot) => {
+            const note = document.getElementById('note-' + snapshot.key);
+            if (note) note.remove();
+        });
+
+        function renderStickyNote(id, data) {
+            const note = document.createElement('div');
+            note.id = 'note-' + id;
+            note.style.left = data.left + 'px'; 
+            note.style.top = data.top + 'px';
+            note.style.width = data.width + 'px';
+            note.style.height = data.height + 'px';
+            note.dataset.w = data.width;
+            note.dataset.h = data.height;
+
+            const dragHandle = document.createElement('div');
+            dragHandle.className = 'drag-handle';
+
+            const authorDiv = document.createElement('span');
+            authorDiv.className = 'author-name';
+            authorDiv.innerText = data.author || '익명';
+
+            const headerControls = document.createElement('div');
+            headerControls.className = 'header-controls';
+
+            const palette = document.createElement('div');
+            palette.className = 'color-palette';
+            ['yellow', 'blue', 'pink', 'green'].forEach(c => {
+                const btn = document.createElement('div');
+                btn.className = 'color-btn ' + c;
+                btn.onmousedown = (e) => e.stopPropagation(); 
+                btn.ontouchstart = (e) => e.stopPropagation(); 
+                btn.onclick = (e) => { e.stopPropagation(); notesRef.child(id).update({ color: c }); };
+                palette.appendChild(btn);
+            });
+
+            const closeBtn = document.createElement('span');
+            closeBtn.className = 'close-btn';
+            closeBtn.innerHTML = '✖';
+            closeBtn.onmousedown = (e) => e.stopPropagation();
+            closeBtn.ontouchstart = (e) => e.stopPropagation();
+            closeBtn.onclick = () => notesRef.child(id).remove(); 
+
+            headerControls.appendChild(palette);
+            headerControls.appendChild(closeBtn);
+            dragHandle.appendChild(authorDiv);
+            dragHandle.appendChild(headerControls);
+
+            const textarea = document.createElement('textarea');
+            textarea.id = 'textarea-' + id;
+            textarea.value = data.text;
+            textarea.placeholder = "의견을 입력하세요...";
+            textarea.addEventListener('input', (e) => notesRef.child(id).update({ text: e.target.value }));
+            textarea.addEventListener('mousedown', (e) => e.stopPropagation());
+            textarea.addEventListener('touchstart', (e) => e.stopPropagation());
+
+            note.appendChild(dragHandle);
+            note.appendChild(textarea);
+            container.appendChild(note);
+
+            // ==========================================
+            // 🚀 2. 타인 메모 제어 차단 로직 (권한 확인)
+            // ==========================================
+            const isMine = (data.author === userName);
+            const hasPermission = isTeacher || isMine; // 교사이거나, 자기가 쓴 글이거나
+
+            note.className = 'sticky-note ' + (data.color || 'yellow');
+            
+            if (!hasPermission) {
+                // 권한이 없으면 수정/이동/삭제 관련 UI 및 기능 비활성화
+                headerControls.style.display = 'none'; // 색상표 및 삭제버튼 숨김
+                textarea.readOnly = true;              // 텍스트 수정 불가
+                dragHandle.classList.add('readonly');  // 드래그 금지 커서
+                note.classList.add('readonly');        // 크기 조절 불가
+            }
+
+            // 드래그 로직
+            dragHandle.addEventListener('mousedown', startDrag);
+            dragHandle.addEventListener('touchstart', startDrag, { passive: false });
+
+            function startDrag(e) {
+                if (!hasPermission) return; // 권한 없으면 드래그 즉시 차단
+
+                if (e.cancelable) e.preventDefault();
+                e.stopPropagation();
+                
+                const isTouch = e.type === 'touchstart';
+                const startEvt = isTouch ? (e.touches[0] || e.changedTouches[0]) : e;
+                if (!startEvt) return;
+
+                note.dataset.locked = "true";
+                note.classList.add('is-dragging');
+
+                const startX = startEvt.clientX;
+                const startY = startEvt.clientY;
+                const initialLeft = parseInt(note.style.left, 10) || 0;
+                const initialTop = parseInt(note.style.top, 10) || 0;
+
+                let finalLeft = initialLeft;
+                let finalTop = initialTop;
+
+                function onMove(moveEvent) {
+                    const mEvt = isTouch ? (moveEvent.touches[0] || moveEvent.changedTouches[0]) : moveEvent;
+                    if (!mEvt) return;
+
+                    const dx = (mEvt.clientX - startX) / currentZoom;
+                    const dy = (mEvt.clientY - startY) / currentZoom;
+                    
+                    finalLeft = initialLeft + dx;
+                    finalTop = initialTop + dy;
+
+                    note.style.left = finalLeft + 'px';
+                    note.style.top = finalTop + 'px';
+                }
+
+                function onEnd() {
+                    if (isTouch) {
+                        document.removeEventListener('touchmove', onMove);
+                        document.removeEventListener('touchend', onEnd);
+                    } else {
+                        document.removeEventListener('mousemove', onMove);
+                        document.removeEventListener('mouseup', onEnd);
+                    }
+                    
+                    note.classList.remove('is-dragging');
+                    note.style.left = finalLeft + 'px';
+                    note.style.top = finalTop + 'px';
+
+                    notesRef.child(id).update({ left: finalLeft, top: finalTop });
+                    setTimeout(() => { note.dataset.locked = "false"; }, 500);
+                }
+
+                if (isTouch) {
+                    document.addEventListener('touchmove', onMove, { passive: false });
+                    document.addEventListener('touchend', onEnd);
+                } else {
+                    document.addEventListener('mousemove', onMove);
+                    document.addEventListener('mouseup', onEnd);
+                }
+            }
+
+            function checkResize() {
+                if (!hasPermission) return; // 권한 없으면 리사이즈 저장 차단
+                const currentW = note.offsetWidth;
+                const currentH = note.offsetHeight;
+                if (note.dataset.w != currentW || note.dataset.h != currentH) {
+                    note.dataset.w = currentW; note.dataset.h = currentH;
+                    notesRef.child(id).update({ width: currentW, height: currentH });
+                }
+            }
+            note.addEventListener('mouseup', checkResize);
+            note.addEventListener('touchend', checkResize);
+        }
+    </script>
+</body>
+</html>
