@@ -2,15 +2,12 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <!-- 🚀 모바일 최적화 메타태그: 브라우저 기본 확대 방지 및 모바일 뷰포트 고정 -->
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>실시간 공동 작업 학습지 (모바일 최적화 완료)</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>실시간 공동 작업 학습지 (교사/학생 권한 분리)</title>
     <style>
-        body { font-family: 'Malgun Gothic', sans-serif; background-color: #f4f5f7; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; overflow-x: hidden; }
+        body { font-family: 'Malgun Gothic', sans-serif; background-color: #f4f5f7; margin: 0; padding: 20px; display: flex; flex-direction: column; align-items: center; overflow-x: hidden; }
         
         #controls { 
-            width: 100%;
-            max-width: 1200px;
             margin-bottom: 15px; 
             background: white; 
             padding: 12px 20px; 
@@ -21,40 +18,24 @@
             align-items: center; 
             flex-wrap: wrap;
             z-index: 1000;
-            box-sizing: border-box;
         }
         
-        .control-group { display: flex; align-items: center; gap: 8px; font-size: 14px; flex-wrap: wrap; }
+        .control-group { display: flex; align-items: center; gap: 8px; font-size: 14px; }
         .control-divider { width: 1px; height: 24px; background-color: #ddd; margin: 0 5px; }
 
-        .save-btn, .reset-btn { background-color: #0984e3; color: white; border: none; padding: 8px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; white-space: nowrap; }
+        .save-btn, .reset-btn { background-color: #0984e3; color: white; border: none; padding: 6px 12px; border-radius: 4px; cursor: pointer; font-weight: bold; font-size: 13px; }
         .save-btn:hover { background-color: #74b9ff; }
         .reset-btn { background-color: #636e72; }
         .reset-btn:hover { background-color: #b2bec3; }
         
-        .role-badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 13px; color: white; white-space: nowrap; }
+        .role-badge { padding: 4px 8px; border-radius: 4px; font-weight: bold; font-size: 13px; color: white; }
         .role-teacher { background-color: #d63031; }
         .role-student { background-color: #00b894; }
 
-        /* 🚀 줌 래퍼 수정: 모바일에서 좌측 정렬되도록 조정 */
-        #zoom-wrapper { width: 100%; max-width: 1200px; display: flex; justify-content: flex-start; overflow-x: auto; padding-bottom: 100px; box-sizing: border-box; }
-        
-        #worksheet-container { 
-            position: relative; 
-            width: 1200px; /* 내부 좌표계 유지를 위해 절대 크기 고정 */
-            min-height: 800px; 
-            background-color: white; 
-            border: 2px solid #ccc; 
-            cursor: crosshair; 
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
-            touch-action: none; 
-            overflow: hidden; 
-            transform-origin: top left; /* 확대/축소 기준점을 좌상단으로 고정 */
-            transition: transform 0.1s ease-out; 
-        }
-        
+        #zoom-wrapper { width: 100%; display: flex; justify-content: center; padding-bottom: 100px; }
+        #worksheet-container { position: relative; width: 1200px; min-height: 800px; background-color: white; border: 2px solid #ccc; cursor: crosshair; box-shadow: 0 4px 8px rgba(0,0,0,0.1); touch-action: none; overflow: hidden; transform-origin: top center; transition: transform 0.1s ease-out; }
         #pdf-canvas { position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none; transform-origin: top left; transition: transform 0.05s ease-out; }
-        .placeholder-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #aaa; font-size: 18px; pointer-events: none; z-index: 1; text-align: center; width: 80%; }
+        .placeholder-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #aaa; font-size: 18px; pointer-events: none; z-index: 1; }
         
         #online-users-container { position: fixed; top: 20px; right: 20px; width: 180px; background: white; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.15); padding: 15px; z-index: 100; border: 1px solid #ddd; }
         .online-header { font-weight: bold; margin-bottom: 10px; font-size: 14px; border-bottom: 1px solid #eee; padding-bottom: 8px; color: #333; }
@@ -62,7 +43,7 @@
         .online-user { font-size: 13px; padding: 5px 0; display: flex; align-items: center; color: #555; }
         .online-indicator { width: 8px; height: 8px; background-color: #2ecc71; border-radius: 50%; margin-right: 8px; box-shadow: 0 0 4px #2ecc71; }
 
-        .sticky-note { position: absolute; box-shadow: 2px 2px 5px rgba(0,0,0,0.2); border-radius: 4px; display: flex; flex-direction: column; z-index: 10; resize: both; overflow: hidden; min-width: 130px; min-height: 90px; }
+        .sticky-note { position: absolute; box-shadow: 2px 2px 5px rgba(0,0,0,0.2); border-radius: 4px; display: flex; flex-direction: column; z-index: 10; resize: both; overflow: hidden; min-width: 150px; min-height: 100px; }
         .sticky-note.is-dragging { z-index: 99; opacity: 0.9; box-shadow: 4px 4px 10px rgba(0,0,0,0.3); }
         .sticky-note.readonly { resize: none !important; }
 
@@ -88,22 +69,10 @@
         .color-btn.blue { background-color: #0984e3; }
         .color-btn.pink { background-color: #e84393; }
         .color-btn.green { background-color: #00b894; }
-        .close-btn { cursor: pointer; font-size: 12px; color: #555; font-weight: bold; padding: 2px; }
+        .close-btn { cursor: pointer; font-size: 12px; color: #555; font-weight: bold; }
+        .close-btn:hover { color: red !important; }
         .sticky-note textarea { flex: 1; width: 100%; background: transparent; border: none; resize: none; outline: none; font-size: 14px; padding: 8px; box-sizing: border-box; }
         .sticky-note textarea:read-only { color: #555; cursor: default; }
-
-        /* 🚀 모바일 기기(폭 768px 이하) 전용 반응형 CSS */
-        @media screen and (max-width: 768px) {
-            #controls { flex-direction: column; align-items: flex-start; gap: 10px; padding: 10px; }
-            .control-divider { display: none; } /* 모바일에서는 구분선 숨김 */
-            #teacher-controls { flex-direction: column; align-items: flex-start; gap: 10px; width: 100%; }
-            #online-users-container { 
-                top: auto; bottom: 20px; right: 10px; /* 화면 아래쪽으로 이동 */
-                width: 130px; padding: 10px; opacity: 0.8;
-            }
-            .online-header { font-size: 12px; margin-bottom: 5px; }
-            .online-user { font-size: 11px; }
-        }
     </style>
 </head>
 <body>
@@ -114,30 +83,36 @@
     </div>
 
     <div id="controls">
-        <div class="control-group" style="width: 100%; justify-content: space-between;">
-            <span id="role-badge" class="role-badge"></span>
-            
-            <div class="control-group">
-                <strong>🔍 화면:</strong>
-                <input type="range" id="zoom-slider" min="10" max="150" value="100" style="width: 70px;">
-                <span id="zoom-val" style="min-width: 38px;">100%</span>
-            </div>
+        <!-- 현재 모드 표시 배지 -->
+        <span id="role-badge" class="role-badge"></span>
+        <div class="control-divider"></div>
+
+        <div class="control-group">
+            <strong>🔍 화면 돋보기:</strong>
+            <label><input type="range" id="zoom-slider" min="30" max="150" value="100" style="width: 70px;"></label>
+            <span id="zoom-val" style="min-width: 38px;">100%</span>
         </div>
 
-        <div id="teacher-controls">
+        <!-- 🚀 교사에게만 보이는 제어 영역 -->
+        <div id="teacher-controls" style="display: flex; align-items: center; gap: 15px;">
+            <div class="control-divider"></div>
             <div class="control-group">
-                <label for="pdf-upload"><strong>📄 배경 업로드: </strong></label>
+                <label for="pdf-upload"><strong>📄 배경 PDF 업로드: </strong></label>
                 <input type="file" id="pdf-upload" accept="application/pdf">
             </div>
             
+            <div class="control-divider"></div>
+
             <div class="control-group">
                 <strong>📐 배경 조절:</strong>
                 <label>배율 <input type="range" id="pdf-scale" min="50" max="200" value="100" style="width: 60px;"></label>
-                <label>가로 <input type="range" id="pdf-x" min="-400" max="400" value="0" style="width: 50px;"></label>
-                <label>세로 <input type="range" id="pdf-y" min="-400" max="400" value="0" style="width: 50px;"></label>
+                <label>가로 <input type="range" id="pdf-x" min="-400" max="400" value="0" style="width: 60px;"></label>
+                <label>세로 <input type="range" id="pdf-y" min="-400" max="400" value="0" style="width: 60px;"></label>
                 <button type="button" class="reset-btn" id="pdf-reset-btn">초기화</button>
             </div>
             
+            <div class="control-divider"></div>
+            <!-- 학생용 링크 복사 버튼 (선생님 화면에만 보임) -->
             <button class="save-btn" onclick="copyStudentLink()">🧑‍🎓 학생용 초대 링크 복사</button>
         </div>
     </div>
@@ -156,12 +131,16 @@
     <script>
         pdfjsLib.GlobalWorkerOptions.workerSrc = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/2.16.105/pdf.worker.min.js';
 
+        // ==========================================
+        // 🚀 1. 권한(Role) 및 방 번호 파라미터 분리
+        // ==========================================
         const urlParams = new URLSearchParams(window.location.search);
         let roomId = urlParams.get('room');
         let role = urlParams.get('role');
         let isTeacher = false;
 
         if (!roomId) {
+            // 방이 없으면 새로 생성하며 무조건 '교사(teacher)' 권한을 부여함
             roomId = Math.random().toString(36).substr(2, 9);
             window.history.replaceState(null, '', '?room=' + roomId + '&role=teacher');
             isTeacher = true;
@@ -169,6 +148,7 @@
             isTeacher = true;
         }
 
+        // UI에 역할 표시 및 비권한 영역 숨김
         const roleBadge = document.getElementById('role-badge');
         const teacherControls = document.getElementById('teacher-controls');
         
@@ -178,13 +158,14 @@
         } else {
             roleBadge.innerText = "🧑‍🎓 학생 모드";
             roleBadge.className = "role-badge role-student";
-            teacherControls.style.display = "none";
+            teacherControls.style.display = "none"; // 학생 화면에서는 배경 조절 메뉴 차단
         }
 
         function copyStudentLink() {
+            // 현재 주소에서 ?room=ID 부분만 추출하여 학생용 링크로 만듦 (role=teacher 제거)
             const link = window.location.origin + window.location.pathname + '?room=' + roomId;
             navigator.clipboard.writeText(link).then(() => {
-                alert("학생용 초대 링크가 복사되었습니다!\n학생들은 본인 메모만 작성할 수 있습니다.\n\n링크: " + link);
+                alert("학생용 초대 링크가 복사되었습니다!\n학생들은 배경을 수정할 수 없으며 본인 메모만 제어할 수 있습니다.\n\n링크: " + link);
             });
         }
 
@@ -194,30 +175,9 @@
         const placeholder = document.getElementById('placeholder');
         if(isTeacher) placeholder.innerText = "상단에서 PDF 파일을 선택하여 배경으로 불러오세요.";
 
-        // ==========================================
-        // 🚀 모바일 기기 화면 자동 맞춤 (Auto-Fit) 로직
-        // ==========================================
         let currentZoom = 1;
         const zoomSlider = document.getElementById('zoom-slider');
         const zoomVal = document.getElementById('zoom-val');
-
-        function autoFitScreen() {
-            const screenWidth = window.innerWidth;
-            // 화면 폭이 1250px 이하인 모바일/태블릿 기기일 경우
-            if (screenWidth < 1250) {
-                // 패딩 여백(약 40px)을 빼고 컨테이너 너비(1200px)로 나누어 최적 배율 계산
-                let fitZoom = (screenWidth - 40) / 1200;
-                if (fitZoom < 0.25) fitZoom = 0.25; // 최소 25% 축소 제한
-                
-                currentZoom = fitZoom;
-                zoomSlider.value = Math.round(currentZoom * 100);
-                zoomVal.innerText = zoomSlider.value + '%';
-                container.style.transform = `scale(${currentZoom})`;
-            }
-        }
-        
-        // 페이지 로드 시 모바일 맞춤 배율 자동 적용
-        window.addEventListener('load', autoFitScreen);
 
         zoomSlider.addEventListener('input', (e) => {
             currentZoom = e.target.value / 100;
@@ -315,7 +275,8 @@
             resetBtn.addEventListener('click', () => pdfTransformRef.set({ scale: 100, x: 0, y: 0 }));
         }
 
-        let userName = prompt("활동에 참여할 이름을 입력하세요:", "");
+        // 사용자 이름
+        let userName = prompt("활동에 참여할 이름을 입력하세요:\n(입력한 이름이 메모 작성자로 표시됩니다)", "");
         if (!userName || userName.trim() === "") userName = "익명";
 
         db.ref('.info/connected').on('value', (snap) => {
@@ -337,13 +298,13 @@
             onlineCount.innerText = count;
         });
 
+        // 포스트잇 생성
         container.addEventListener('click', function(e) {
             if (e.target !== container && e.target !== canvas && e.target !== placeholder) return;
             const containerRect = container.getBoundingClientRect();
-            // 클릭 좌표 계산 시 화면 확대 배율을 정확히 반영하여 모바일에서도 터치 지점에 메모 생성
             const clickX = Math.round((e.clientX - containerRect.left) / currentZoom);
             const clickY = Math.round((e.clientY - containerRect.top) / currentZoom);
-            notesRef.push().set({ left: clickX, top: clickY, width: 160, height: 120, text: "", author: userName, color: "yellow" });
+            notesRef.push().set({ left: clickX, top: clickY, width: 200, height: 150, text: "", author: userName, color: "yellow" });
         });
 
         notesRef.on('child_added', (snapshot) => renderStickyNote(snapshot.key, snapshot.val()));
@@ -356,6 +317,7 @@
             
             if (note) {
                 note.className = 'sticky-note ' + (data.color || 'yellow');
+                // 권한이 없으면 readonly 유지
                 const isMine = (data.author === userName);
                 if (!isTeacher && !isMine) note.classList.add('readonly');
 
@@ -431,23 +393,29 @@
             note.appendChild(textarea);
             container.appendChild(note);
 
+            // ==========================================
+            // 🚀 2. 타인 메모 제어 차단 로직 (권한 확인)
+            // ==========================================
             const isMine = (data.author === userName);
-            const hasPermission = isTeacher || isMine;
+            const hasPermission = isTeacher || isMine; // 교사이거나, 자기가 쓴 글이거나
 
             note.className = 'sticky-note ' + (data.color || 'yellow');
             
             if (!hasPermission) {
-                headerControls.style.display = 'none'; 
-                textarea.readOnly = true;              
-                dragHandle.classList.add('readonly');  
-                note.classList.add('readonly');        
+                // 권한이 없으면 수정/이동/삭제 관련 UI 및 기능 비활성화
+                headerControls.style.display = 'none'; // 색상표 및 삭제버튼 숨김
+                textarea.readOnly = true;              // 텍스트 수정 불가
+                dragHandle.classList.add('readonly');  // 드래그 금지 커서
+                note.classList.add('readonly');        // 크기 조절 불가
             }
 
+            // 드래그 로직
             dragHandle.addEventListener('mousedown', startDrag);
             dragHandle.addEventListener('touchstart', startDrag, { passive: false });
 
             function startDrag(e) {
-                if (!hasPermission) return; 
+                if (!hasPermission) return; // 권한 없으면 드래그 즉시 차단
+
                 if (e.cancelable) e.preventDefault();
                 e.stopPropagation();
                 
@@ -463,16 +431,21 @@
                 const initialLeft = parseInt(note.style.left, 10) || 0;
                 const initialTop = parseInt(note.style.top, 10) || 0;
 
+                let finalLeft = initialLeft;
+                let finalTop = initialTop;
+
                 function onMove(moveEvent) {
                     const mEvt = isTouch ? (moveEvent.touches[0] || moveEvent.changedTouches[0]) : moveEvent;
                     if (!mEvt) return;
 
-                    // 모바일 축소 환경에서도 드래그 이동 거리를 정확히 환산
                     const dx = (mEvt.clientX - startX) / currentZoom;
                     const dy = (mEvt.clientY - startY) / currentZoom;
                     
-                    note.style.left = (initialLeft + dx) + 'px';
-                    note.style.top = (initialTop + dy) + 'px';
+                    finalLeft = initialLeft + dx;
+                    finalTop = initialTop + dy;
+
+                    note.style.left = finalLeft + 'px';
+                    note.style.top = finalTop + 'px';
                 }
 
                 function onEnd() {
@@ -485,7 +458,10 @@
                     }
                     
                     note.classList.remove('is-dragging');
-                    notesRef.child(id).update({ left: parseInt(note.style.left), top: parseInt(note.style.top) });
+                    note.style.left = finalLeft + 'px';
+                    note.style.top = finalTop + 'px';
+
+                    notesRef.child(id).update({ left: finalLeft, top: finalTop });
                     setTimeout(() => { note.dataset.locked = "false"; }, 500);
                 }
 
@@ -499,7 +475,7 @@
             }
 
             function checkResize() {
-                if (!hasPermission) return;
+                if (!hasPermission) return; // 권한 없으면 리사이즈 저장 차단
                 const currentW = note.offsetWidth;
                 const currentH = note.offsetHeight;
                 if (note.dataset.w != currentW || note.dataset.h != currentH) {
