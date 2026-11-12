@@ -2,26 +2,15 @@
 <html lang="ko">
 <head>
     <meta charset="UTF-8">
-    <!-- 🚀 모바일 최적화 메타태그: 브라우저 기본 확대 방지 및 모바일 뷰포트 고정 -->
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>실시간 공동 작업 학습지 (모바일 최적화 완료)</title>
+    <title>실시간 공동 작업 학습지 (메모-PDF 배율 완전 동기화)</title>
     <style>
         body { font-family: 'Malgun Gothic', sans-serif; background-color: #f4f5f7; margin: 0; padding: 15px; display: flex; flex-direction: column; align-items: center; overflow-x: hidden; }
         
         #controls { 
-            width: 100%;
-            max-width: 1200px;
-            margin-bottom: 15px; 
-            background: white; 
-            padding: 12px 20px; 
-            border-radius: 8px; 
-            box-shadow: 0 2px 5px rgba(0,0,0,0.1); 
-            display: flex; 
-            gap: 15px; 
-            align-items: center; 
-            flex-wrap: wrap;
-            z-index: 1000;
-            box-sizing: border-box;
+            width: 100%; max-width: 1200px; margin-bottom: 15px; background: white; padding: 12px 20px; 
+            border-radius: 8px; box-shadow: 0 2px 5px rgba(0,0,0,0.1); display: flex; gap: 15px; 
+            align-items: center; flex-wrap: wrap; z-index: 1000; box-sizing: border-box;
         }
         
         .control-group { display: flex; align-items: center; gap: 8px; font-size: 14px; flex-wrap: wrap; }
@@ -36,24 +25,21 @@
         .role-teacher { background-color: #d63031; }
         .role-student { background-color: #00b894; }
 
-        /* 🚀 줌 래퍼 수정: 모바일에서 좌측 정렬되도록 조정 */
         #zoom-wrapper { width: 100%; max-width: 1200px; display: flex; justify-content: flex-start; overflow-x: auto; padding-bottom: 100px; box-sizing: border-box; }
         
         #worksheet-container { 
-            position: relative; 
-            width: 1200px; /* 내부 좌표계 유지를 위해 절대 크기 고정 */
-            min-height: 800px; 
-            background-color: white; 
-            border: 2px solid #ccc; 
-            cursor: crosshair; 
-            box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
-            touch-action: none; 
-            overflow: hidden; 
-            transform-origin: top left; /* 확대/축소 기준점을 좌상단으로 고정 */
-            transition: transform 0.1s ease-out; 
+            position: relative; width: 1200px; min-height: 800px; background-color: white; 
+            border: 2px solid #ccc; cursor: crosshair; box-shadow: 0 4px 8px rgba(0,0,0,0.1); 
+            touch-action: none; overflow: hidden; transform-origin: top left; transition: transform 0.1s ease-out; 
         }
         
-        #pdf-canvas { position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none; transform-origin: top left; transition: transform 0.05s ease-out; }
+        /* 🚀 메모와 PDF를 한꺼번에 묶어서 조절하기 위한 내부 작업 공간 */
+        #inner-workspace {
+            position: absolute; top: 0; left: 0; width: 100%; height: 100%; 
+            transform-origin: top left; transition: transform 0.05s ease-out;
+        }
+
+        #pdf-canvas { position: absolute; top: 0; left: 0; z-index: 0; pointer-events: none; }
         .placeholder-text { position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%); color: #aaa; font-size: 18px; pointer-events: none; z-index: 1; text-align: center; width: 80%; }
         
         #online-users-container { position: fixed; top: 20px; right: 20px; width: 180px; background: white; border-radius: 8px; box-shadow: 0 4px 8px rgba(0,0,0,0.15); padding: 15px; z-index: 100; border: 1px solid #ddd; }
@@ -92,15 +78,11 @@
         .sticky-note textarea { flex: 1; width: 100%; background: transparent; border: none; resize: none; outline: none; font-size: 14px; padding: 8px; box-sizing: border-box; }
         .sticky-note textarea:read-only { color: #555; cursor: default; }
 
-        /* 🚀 모바일 기기(폭 768px 이하) 전용 반응형 CSS */
         @media screen and (max-width: 768px) {
             #controls { flex-direction: column; align-items: flex-start; gap: 10px; padding: 10px; }
-            .control-divider { display: none; } /* 모바일에서는 구분선 숨김 */
+            .control-divider { display: none; } 
             #teacher-controls { flex-direction: column; align-items: flex-start; gap: 10px; width: 100%; }
-            #online-users-container { 
-                top: auto; bottom: 20px; right: 10px; /* 화면 아래쪽으로 이동 */
-                width: 130px; padding: 10px; opacity: 0.8;
-            }
+            #online-users-container { top: auto; bottom: 20px; right: 10px; width: 130px; padding: 10px; opacity: 0.8; }
             .online-header { font-size: 12px; margin-bottom: 5px; }
             .online-user { font-size: 11px; }
         }
@@ -116,7 +98,6 @@
     <div id="controls">
         <div class="control-group" style="width: 100%; justify-content: space-between;">
             <span id="role-badge" class="role-badge"></span>
-            
             <div class="control-group">
                 <strong>🔍 화면:</strong>
                 <input type="range" id="zoom-slider" min="10" max="150" value="100" style="width: 70px;">
@@ -137,15 +118,17 @@
                 <label>세로 <input type="range" id="pdf-y" min="-400" max="400" value="0" style="width: 50px;"></label>
                 <button type="button" class="reset-btn" id="pdf-reset-btn">초기화</button>
             </div>
-            
             <button class="save-btn" onclick="copyStudentLink()">🧑‍🎓 학생용 초대 링크 복사</button>
         </div>
     </div>
 
     <div id="zoom-wrapper">
         <div id="worksheet-container">
-            <canvas id="pdf-canvas"></canvas>
-            <div class="placeholder-text" id="placeholder">학습지가 준비되지 않았습니다.</div>
+            <!-- 🚀 내부 작업 공간 (PDF와 포스트잇을 한 몸으로 묶음) -->
+            <div id="inner-workspace">
+                <canvas id="pdf-canvas"></canvas>
+                <div class="placeholder-text" id="placeholder">학습지가 준비되지 않았습니다.</div>
+            </div>
         </div>
     </div>
 
@@ -189,34 +172,29 @@
         }
 
         const container = document.getElementById('worksheet-container');
+        const innerWorkspace = document.getElementById('inner-workspace'); // 🚀 내부 워크스페이스
         const canvas = document.getElementById('pdf-canvas');
         const ctx = canvas.getContext('2d');
         const placeholder = document.getElementById('placeholder');
         if(isTeacher) placeholder.innerText = "상단에서 PDF 파일을 선택하여 배경으로 불러오세요.";
 
-        // ==========================================
-        // 🚀 모바일 기기 화면 자동 맞춤 (Auto-Fit) 로직
-        // ==========================================
         let currentZoom = 1;
+        let currentPdfScale = 1; // 🚀 PDF 자체 배율(교사가 조절하는 값) 변수 독립 추가
+
         const zoomSlider = document.getElementById('zoom-slider');
         const zoomVal = document.getElementById('zoom-val');
 
         function autoFitScreen() {
             const screenWidth = window.innerWidth;
-            // 화면 폭이 1250px 이하인 모바일/태블릿 기기일 경우
             if (screenWidth < 1250) {
-                // 패딩 여백(약 40px)을 빼고 컨테이너 너비(1200px)로 나누어 최적 배율 계산
                 let fitZoom = (screenWidth - 40) / 1200;
-                if (fitZoom < 0.25) fitZoom = 0.25; // 최소 25% 축소 제한
-                
+                if (fitZoom < 0.25) fitZoom = 0.25; 
                 currentZoom = fitZoom;
                 zoomSlider.value = Math.round(currentZoom * 100);
                 zoomVal.innerText = zoomSlider.value + '%';
                 container.style.transform = `scale(${currentZoom})`;
             }
         }
-        
-        // 페이지 로드 시 모바일 맞춤 배율 자동 적용
         window.addEventListener('load', autoFitScreen);
 
         zoomSlider.addEventListener('input', (e) => {
@@ -244,7 +222,6 @@
         const bgRef = roomRef.child('pdf_background');
         const pdfTransformRef = roomRef.child('pdf_transform'); 
 
-        // PDF 배경 렌더링
         bgRef.on('value', (snap) => {
             if (snap.val()) {
                 renderPdfFromBase64(snap.val());
@@ -287,7 +264,7 @@
             });
         }
 
-        // PDF 변형 동기화
+        // PDF 변형 동기화 (🚀 캔버스가 아닌 innerWorkspace를 변형시켜 포스트잇도 함께 조절)
         const scaleInput = document.getElementById('pdf-scale');
         const xInput = document.getElementById('pdf-x');
         const yInput = document.getElementById('pdf-y');
@@ -295,8 +272,10 @@
 
         pdfTransformRef.on('value', (snap) => {
             const val = snap.val() || { scale: 100, x: 0, y: 0 };
-            const scale = val.scale / 100;
-            canvas.style.transform = `translate(${val.x}px, ${val.y}px) scale(${scale})`;
+            currentPdfScale = val.scale / 100; // 내부 배율 갱신
+            
+            // PDF와 메모를 감싸는 부모를 한꺼번에 이동/확대
+            innerWorkspace.style.transform = `translate(${val.x}px, ${val.y}px) scale(${currentPdfScale})`;
             
             if (isTeacher) {
                 scaleInput.value = val.scale;
@@ -338,11 +317,16 @@
         });
 
         container.addEventListener('click', function(e) {
-            if (e.target !== container && e.target !== canvas && e.target !== placeholder) return;
-            const containerRect = container.getBoundingClientRect();
-            // 클릭 좌표 계산 시 화면 확대 배율을 정확히 반영하여 모바일에서도 터치 지점에 메모 생성
-            const clickX = Math.round((e.clientX - containerRect.left) / currentZoom);
-            const clickY = Math.round((e.clientY - containerRect.top) / currentZoom);
+            // 클릭 대상 허용 범위에 innerWorkspace 포함
+            if (e.target !== container && e.target !== innerWorkspace && e.target !== canvas && e.target !== placeholder) return;
+            
+            // 🚀 내부 워크스페이스 기준 클릭 좌표 (화면 줌 * 배경 줌) 이중 스케일 보정
+            const innerRect = innerWorkspace.getBoundingClientRect();
+            const totalScale = currentZoom * currentPdfScale; 
+            
+            const clickX = Math.round((e.clientX - innerRect.left) / totalScale);
+            const clickY = Math.round((e.clientY - innerRect.top) / totalScale);
+            
             notesRef.push().set({ left: clickX, top: clickY, width: 160, height: 120, text: "", author: userName, color: "yellow" });
         });
 
@@ -429,7 +413,9 @@
 
             note.appendChild(dragHandle);
             note.appendChild(textarea);
-            container.appendChild(note);
+            
+            // 🚀 포스트잇을 컨테이너가 아닌 innerWorkspace 안에 추가하여 함께 묶임
+            innerWorkspace.appendChild(note);
 
             const isMine = (data.author === userName);
             const hasPermission = isTeacher || isMine;
@@ -467,9 +453,10 @@
                     const mEvt = isTouch ? (moveEvent.touches[0] || moveEvent.changedTouches[0]) : moveEvent;
                     if (!mEvt) return;
 
-                    // 모바일 축소 환경에서도 드래그 이동 거리를 정확히 환산
-                    const dx = (mEvt.clientX - startX) / currentZoom;
-                    const dy = (mEvt.clientY - startY) / currentZoom;
+                    // 🚀 드래그 시에도 (화면 줌 * 배경 줌) 이중 스케일로 정확한 이동 반경 보정
+                    const totalScale = currentZoom * currentPdfScale;
+                    const dx = (mEvt.clientX - startX) / totalScale;
+                    const dy = (mEvt.clientY - startY) / totalScale;
                     
                     note.style.left = (initialLeft + dx) + 'px';
                     note.style.top = (initialTop + dy) + 'px';
